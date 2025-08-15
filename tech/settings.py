@@ -46,6 +46,8 @@ INSTALLED_APPS = [
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
     'rest_framework.authtoken',
+    'videoconference_app',
+    'django_filters'
     
 
 ]
@@ -64,6 +66,7 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'tech.urls'
+
 
 TEMPLATES = [
     {

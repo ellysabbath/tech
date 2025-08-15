@@ -1,6 +1,32 @@
 from django.db import models
+from django.contrib.auth.models import User
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
-# Create your models here.
+class UserProfile(models.Model):
+    ROLE_CHOICES = [
+        ('user', 'Regular User'),
+        ('admin', 'Admin'),
+        ('staff', 'Staff'),
+    ]
+    
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    phoneNumber = models.CharField(max_length=20, blank=True, null=True)
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='user')
+
+@receiver(post_save, sender=User)
+def create_user_profile(sender, instance, created, **kwargs):
+    if created:
+        UserProfile.objects.create(user=instance)
+
+@receiver(post_save, sender=User)
+def save_user_profile(sender, instance, **kwargs):
+    if hasattr(instance, 'profile'):
+        instance.profile.save()
+
+
+
+
 class Service(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
@@ -76,3 +102,360 @@ class DeaconSupportRecord(models.Model):
 
     def __str__(self):
         return f"{self.full_name} - {self.date}"
+
+
+from django.db import models
+from twilio.rest import Client
+
+# Create your models here.
+
+
+from django.db import models
+from django.contrib.auth import get_user_model
+from twilio.rest import Client
+from django.conf import settings
+
+User = get_user_model()
+
+from django.db import models
+from django.contrib.auth import get_user_model
+from django.core.validators import RegexValidator
+
+User = get_user_model()
+
+class Contact(models.Model):
+    phone_regex = RegexValidator(
+        regex=r'^\+?255?\d{9,15}$',
+        message="Phone number must be in format: '+255'"
+    )
+    phone_number = models.CharField(
+        validators=[phone_regex],
+        max_length=17,
+        unique=True,
+        null=False
+    )
+    
+    name = models.CharField(max_length=100, blank=True)
+    email=models.EmailField(max_length=100, null=True)
+
+    role = models.CharField(
+        max_length=40,
+        choices=[
+            ('user', 'User'),
+            ('Admin', 'Admin'),
+            ('staff', 'staff'),
+            
+        ],
+        default='user'
+    )
+    is_active = models.BooleanField(default=True)
+    
+    def __str__(self):
+        return f"{self.name} ({self.phone_number})"
+
+from django.db import models
+from twilio.rest import Client
+from django.conf import settings
+import africastalking
+
+class Message(models.Model):
+    sender = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+    # Remove recipient FK since we're sending to all contacts
+    content = models.TextField(null=True)
+    status = models.CharField(
+        max_length=40,
+        choices=[
+            ('pending', 'Pending'),
+            ('sent', 'Sent'),
+            ('failed', 'Failed'),
+            ('message sent successfully', 'message  Sent')
+        ],
+        default='pending'
+    )
+    created_at = models.DateTimeField(auto_now_add=True,null=True)
+    
+    def __str__(self):
+        return f"Bulk message: {self.content[:20]}..."
+    
+    def send_bulk_sms(self):
+        from .models import Contact  # Avoid circular imports
+
+        # Initialize Africa's Talking with your credentials
+        username = "bahi"  # <-- replace with your Africa's Talking username
+        api_key = "atsk_6d6d65acfca1d589d8ed7b11d143b017c32867e7b7bc1583ac6bdb677901351c1f1e317a"  # Your API key
+
+        africastalking.initialize(username, api_key)
+        sms = africastalking.SMS
+
+        try:
+            active_contacts = Contact.objects.filter(is_active=True)
+            phone_numbers = [contact.phone_number for contact in active_contacts]
+
+            if not phone_numbers:
+                self.status = 'failed'
+                self.save()
+                return False
+
+            # Africa's Talking send method expects a list of numbers
+            response = sms.send(self.content, phone_numbers)
+
+            # You can parse the response to see how many succeeded
+            # For simplicity, let's assume if response is returned, it's success
+            self.status = 'message sent successfully to mass'
+            self.save()
+            return True
+
+        except Exception as e:
+            # You can log e if you want
+            self.status = 'failed'
+            self.save()
+            return False
+        
+
+# ==========================Announcements=============
+class Announcements(models.Model):
+    date=models.DateField(auto_now_add=True,null=True)
+    title=models.CharField(max_length=50,null=True)
+    content=models.TextField(max_length=300,null=True)
+
+
+    def __str__(self):
+        return self.title
+    
+# =========================Timetable
+class Timetable(models.Model):
+    date=models.DateField(auto_now_add=True,null=True)
+    title=models.CharField(max_length=50,null=True)
+    document=models.FileField(upload_to='timetable/%Y/%m/%d/', blank=True, null=True)
+    
+    def __str__(self):
+        return self.document
+    
+
+  
+
+
+
+#   departments
+from django.db import models
+
+
+from django.db import models
+from django.core.validators import MinLengthValidator
+
+class Department(models.Model):  # Changed to singular name (best practice)
+    department_name = models.CharField(
+        max_length=255,
+        unique=True,
+        validators=[MinLengthValidator(2)],  # Ensure at least 2 characters
+        help_text="Name of the department (must be unique)",
+        error_messages={
+            'unique': "A department with this name already exists.",
+        }
+    )
+    date_created = models.DateTimeField(auto_now_add=True)
+    last_modified = models.DateTimeField(auto_now=True)  # Added to track modifications
+
+    class Meta:
+        verbose_name = "Department"  # Singular name in admin
+        verbose_name_plural = "Departments"  # Plural name in admin
+        ordering = ['department_name']  # Default ordering
+
+    def __str__(self):
+        return self.department_name
+
+    def clean(self):
+        # Optional: Add any custom validation logic here
+        self.department_name = self.department_name.strip()  # Remove leading/trailing whitespace
+
+
+class DepartmentContent(models.Model):  # Changed to singular name (best practice)
+    IMPLEMENTATION_STATUS_CHOICES = [
+        ('completed', 'Completed'),
+        ('in_progress', 'In Progress'),
+        ('incomplete', 'Incomplete'),
+    ]
+
+    department = models.ForeignKey(
+        Department,  # Updated to match new model name
+        on_delete=models.CASCADE,
+        related_name="contents",
+        verbose_name="Department"
+    )
+    year_order = models.PositiveIntegerField(
+        verbose_name="Year",
+        help_text="The year this content is associated with"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_modified = models.DateTimeField(auto_now=True)  # Added to track modifications
+    short_description = models.TextField(
+        verbose_name="Description",
+        validators=[MinLengthValidator(10)]  # Ensure meaningful descriptions
+    )
+    cost = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        verbose_name="Estimated Cost",
+        help_text="Estimated cost in local currency"
+    )
+    implementation_status = models.CharField(
+        max_length=20,
+        choices=IMPLEMENTATION_STATUS_CHOICES,
+        default='incomplete',
+        verbose_name="Status"
+    )
+
+    class Meta:
+        verbose_name = "Department Content"  # Singular name in admin
+        verbose_name_plural = "Department Contents"  # Plural name in admin
+        ordering = ['-year_order', 'department']  # Default ordering
+        unique_together = ['department', 'year_order']  # Prevent duplicate year entries per department
+
+    def __str__(self):
+        return f"{self.department.department_name} - {self.year_order} ({self.get_implementation_status_display()})"
+
+    def clean(self):
+        # Optional: Add any custom validation logic here
+        self.short_description = self.short_description.strip()
+
+
+class DepartmentMembers(models.Model):
+    BAPTISM_STATUS_CHOICES = [
+        ('baptized', 'Baptized'),
+        ('not_baptized', 'Not Baptized'),
+    ]
+    
+    MARITAL_STATUS_CHOICES = [
+        ('in_marriage', 'In Marriage'),
+        ('not_in_marriage', 'Not In Marriage'),
+        ('in_relationship', 'In Relationship'),
+    ]
+
+    department = models.ForeignKey(
+        Department,
+        on_delete=models.CASCADE,
+        related_name="members",
+        verbose_name="Department"
+    )
+    full_name = models.CharField(
+        max_length=100,
+        verbose_name="Full Name",
+        validators=[MinLengthValidator(3)]
+    )
+    mobile_number = models.CharField(
+        max_length=20,
+        verbose_name="Mobile Number",
+        blank=True,
+        null=True
+    )
+    email = models.EmailField(
+        verbose_name="Email Address",
+        blank=True,
+        null=True
+    )
+    baptism_status = models.CharField(
+        max_length=20,
+        choices=BAPTISM_STATUS_CHOICES,
+        verbose_name="Baptism Status"
+    )
+    marital_status = models.CharField(
+        max_length=20,
+        choices=MARITAL_STATUS_CHOICES,
+        verbose_name="Marital Status"
+    )
+    membership_number = models.CharField(
+        max_length=50,
+        unique=True,
+        verbose_name="Membership Number",
+        help_text="Unique identifier for the member"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_modified = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Department Member"
+        verbose_name_plural = "Department Members"
+        ordering = ['full_name', 'department']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['department', 'membership_number'],
+                name='unique_department_membership'
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.full_name} ({self.membership_number}) - {self.department.department_name}"
+
+    def clean(self):
+        # Clean and validate data before saving
+        self.full_name = self.full_name.strip()
+        if self.mobile_number:
+            self.mobile_number = self.mobile_number.strip()
+        if self.email:
+            self.email = self.email.strip().lower()
+        self.membership_number = self.membership_number.strip()
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
+
+
+
+
+
+
+class DepartmentReport(models.Model):
+    REPORT_TYPE_CHOICES = [
+        ('monthly', 'Monthly'),
+        ('quarterly', 'Quarterly'),
+        ('annual', 'Annual'),
+        ('special', 'Special'),
+    ]
+
+    department = models.ForeignKey(
+        Department,
+        on_delete=models.CASCADE,
+        related_name="reports",
+        verbose_name="Department"
+    )
+    title = models.CharField(
+        max_length=200,
+        verbose_name="Report Title"
+    )
+    report_type = models.CharField(
+        max_length=20,
+        choices=REPORT_TYPE_CHOICES,
+        verbose_name="Report Type"
+    )
+    report_date = models.DateField(
+        verbose_name="Report Date"
+    )
+    description = models.TextField(
+        verbose_name="Description",
+        blank=True,
+        null=True
+    )
+    file_upload = models.FileField(
+        upload_to='department_reports/',
+        verbose_name="File Upload",
+        blank=True,
+        null=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_modified = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Department Report"
+        verbose_name_plural = "Department Reports"
+        ordering = ['-report_date', 'department']
+        indexes = [
+            models.Index(fields=['department', 'report_date']),
+        ]
+
+    def __str__(self):
+        return f"{self.title} - {self.department.department_name} ({self.get_report_type_display()})"
