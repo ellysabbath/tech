@@ -775,8 +775,8 @@ from rest_framework import viewsets, permissions
 from rest_framework.generics import ListAPIView
 from rest_framework.exceptions import NotFound
 from django.db.models import Q
-from .models import DepartmentMembers
-from .serializers import DepartmentMembersSerializer
+from .models import DepartmentMembers,DepartmentAssets
+from .serializers import DepartmentMembersSerializer,DepartmentAssetsSerializer
 
 class DepartmentMembersViewSet(viewsets.ModelViewSet):
     serializer_class = DepartmentMembersSerializer
@@ -810,6 +810,12 @@ class DepartmentMembersByMembershipNumber(ListAPIView):
     def get_queryset(self):
         membership_number = self.kwargs['membership_number']
         return DepartmentMembers.objects.filter(membership_number__iexact=membership_number)
+    
+
+
+
+
+
     
 from .models import DepartmentReport
 from .serializers import DepartmentReportSerializer
@@ -915,3 +921,95 @@ class DepartmentReportsByType(ListAPIView):
     def get_queryset(self):
         report_type = self.kwargs['report_type']
         return DepartmentReport.objects.filter(report_type=report_type)
+    
+
+
+
+
+class DepartmentAssetsViewSet(viewsets.ModelViewSet):
+    serializer_class = DepartmentAssetsSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def get_queryset(self):
+        queryset = DepartmentAssets.objects.all()
+        department_id = self.request.query_params.get('department', None)
+        AssetName = self.request.query_params.get('AssetName', None)
+        
+        if department_id:
+            queryset = queryset.filter(department=department_id)
+        
+        if AssetName:
+            queryset = queryset.filter(AssetName__icontains=AssetName)
+           
+            
+        return queryset.select_related('department')
+
+class DepartmentAssetsByDepartment(ListAPIView):
+    serializer_class = DepartmentAssetsSerializer
+    permission_classes = [permissions.AllowAny]
+    
+    def get_queryset(self):
+        department_id = self.kwargs['department_id']
+        return DepartmentAssets.objects.filter(department_id=department_id)
+
+class DepartmentAssetsByName(ListAPIView):
+    serializer_class = DepartmentMembersSerializer
+    permission_classes = [permissions.AllowAny]
+    
+    def get_queryset(self):
+        asset_name = self.kwargs['assetName']
+        return DepartmentAssets.objects.filter(asset_name__iexact=asset_name)
+    
+
+
+
+
+    from rest_framework import viewsets, permissions
+from rest_framework.generics import ListAPIView
+from .models import DepartmentOrder
+from .serializers import DepartmentOrderSerializer
+
+class DepartmentOrderViewSet(viewsets.ModelViewSet):
+    serializer_class = DepartmentOrderSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def get_queryset(self):
+        queryset = DepartmentOrder.objects.all()
+        department_id = self.request.query_params.get('department', None)
+        title = self.request.query_params.get('title', None)
+        status = self.request.query_params.get('status', None)
+        
+        if department_id:
+            queryset = queryset.filter(department=department_id)
+        
+        if title:
+            queryset = queryset.filter(title__icontains=title)
+            
+        if status:
+            queryset = queryset.filter(status__iexact=status)
+            
+        return queryset.select_related('department').order_by('-dateCreated')
+
+class DepartmentOrderByDepartment(ListAPIView):
+    serializer_class = DepartmentOrderSerializer
+    permission_classes = [permissions.AllowAny]
+    
+    def get_queryset(self):
+        department_id = self.kwargs['department_id']
+        return DepartmentOrder.objects.filter(department_id=department_id).order_by('-dateCreated')
+
+class DepartmentOrderByStatus(ListAPIView):
+    serializer_class = DepartmentOrderSerializer
+    permission_classes = [permissions.AllowAny]
+    
+    def get_queryset(self):
+        status = self.kwargs['status']
+        return DepartmentOrder.objects.filter(status__iexact=status).order_by('-dateCreated')
+
+class DepartmentOrderByTitle(ListAPIView):
+    serializer_class = DepartmentOrderSerializer
+    permission_classes = [permissions.AllowAny]
+    
+    def get_queryset(self):
+        title = self.kwargs['title']
+        return DepartmentOrder.objects.filter(title__icontains=title).order_by('-dateCreated')

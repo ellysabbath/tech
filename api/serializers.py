@@ -268,3 +268,77 @@ class DepartmentReportSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(errors)
         
         return data
+    
+
+from .models import DepartmentAssets
+class DepartmentAssetsSerializer(serializers.ModelSerializer):
+    department_name = serializers.CharField(source='department.department_name', read_only=True)
+    
+    class Meta:
+        model = DepartmentAssets
+        fields = "__all__"
+        extra_kwargs = {
+            'department': {'required': True},
+            'totalNumberOfAssets': {'required': True}
+        }
+
+
+
+
+
+from .models import DepartmentOrder
+from rest_framework import serializers
+from .models import DepartmentOrder
+
+class DepartmentOrderSerializer(serializers.ModelSerializer):
+    department_name = serializers.CharField(source='department.department_name', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    
+    class Meta:
+        model = DepartmentOrder
+        fields = [
+            'id',
+            'department',
+            'department_name',
+            'title',
+            'dateCreated',
+            'dateToImplement',
+            'howToImplement',
+            'Requirements',
+            'costToImplement',
+            'status',
+            'status_display',
+            'created_at',
+            'last_modified'
+        ]
+        extra_kwargs = {
+            'department': {'required': True},
+            'title': {
+                'required': True,
+                'min_length': 3,
+                'error_messages': {
+                    'min_length': 'Title must be at least 3 characters long.'
+                }
+            },
+            'dateToImplement': {'required': True},
+            'howToImplement': {'required': True},
+            'Requirements': {'required': True},
+            'costToImplement': {
+                'required': True,
+                'min_value': 0,
+                'error_messages': {
+                    'min_value': 'Cost cannot be negative.'
+                }
+            }
+        }
+
+    def validate(self, data):
+        """
+        Custom validation for order data
+        """
+        if 'dateToImplement' in data and 'dateCreated' in data:
+            if data['dateToImplement'] < data['dateCreated']:
+                raise serializers.ValidationError(
+                    "Implementation date cannot be before creation date"
+                )
+        return data

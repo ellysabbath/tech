@@ -13,6 +13,9 @@ router.register(r'departments', DepartmentsViewSet, basename='departments')
 router.register(r'department-contents', DepartmentContentsViewSet, basename='department-contents')
 router.register(r'department-members', DepartmentMembersViewSet, basename='department-members')
 router.register(r'department-reports', DepartmentReportsViewSet, basename='department-reports')
+router.register(r'department-assets', DepartmentAssetsViewSet, basename='department-assets')
+router.register(r'department-orders', DepartmentOrderViewSet, basename='department-order')
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -87,12 +90,44 @@ urlpatterns = [
     path('api/members/by-number/<str:membership_number>/', 
          DepartmentMembersByMembershipNumber.as_view(),
          name='department-members-by-number'),
-        path('api/departments/<int:department_id>/reports/', 
+
+     path('api/departments/<int:department_id>/reports/', 
          DepartmentReportsByDepartment.as_view(), 
          name='department-reports-list'),
     path('api/reports/by-type/<str:report_type>/', 
          DepartmentReportsByType.as_view(),
          name='department-reports-by-type'),
+
+
+
+
+    path('api/departments/<int:department_id>/assets/', 
+         DepartmentAssetsByDepartment.as_view(), 
+         name='department-assets-list'),
+    path('api/assets/by-name/<str:asset_name>/', 
+         DepartmentAssetsByName.as_view(),
+         name='department-members-by-number'),
+
+
+   path('api/departments/<int:department_id>/reports/', 
+         DepartmentReportsByDepartment.as_view(), 
+         name='department-reports-list'),
+    path('api/reports/by-type/<str:report_type>/', 
+         DepartmentReportsByType.as_view(),
+         name='department-reports-by-type'),
+
+
+
+
+  path('api/department-orders/department/<int:department_id>/', 
+         DepartmentOrderByDepartment.as_view(), 
+         name='department-orders-by-department'),
+    path('api/department-orders/status/<str:status>/', 
+         DepartmentOrderByStatus.as_view(), 
+         name='department-orders-by-status'),
+    path('api/department-orders/title/<str:title>/', 
+         DepartmentOrderByTitle.as_view(), 
+         name='department-orders-by-title'),
 
     # Include router URLs (maintains existing /api/departments/ and /api/department-contents/ endpoints)
     path('api/', include(router.urls)),

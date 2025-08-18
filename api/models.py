@@ -459,3 +459,157 @@ class DepartmentReport(models.Model):
 
     def __str__(self):
         return f"{self.title} - {self.department.department_name} ({self.get_report_type_display()})"
+    
+
+
+
+
+class DepartmentAssets(models.Model):
+    
+    
+    SELECT_CHOICES = [
+        ('is required', 'is required'),
+        ('not required', 'not required'),
+        ]
+
+    department = models.ForeignKey(
+        Department,
+        on_delete=models.CASCADE,
+        related_name="assets",
+        verbose_name="Department"
+    )
+    title = models.CharField(
+        max_length=100,
+        verbose_name="title",
+        validators=[MinLengthValidator(3)]
+    )
+    dateOfAnalysis = models.DateField(
+        
+        verbose_name="date of analysis",
+        blank=True,
+        null=True
+    )
+    AssetName = models.CharField(
+        verbose_name="asset name",
+        blank=True,
+        null=True,
+        max_length=20
+    )
+    totalNumberOfAssets = models.IntegerField(
+        verbose_name="total number of assets"
+    )
+    abledAssetsNumber = models.IntegerField(
+        verbose_name="total number of abled assets"
+    )
+    disabledAssetsNumber = models.IntegerField(
+
+        verbose_name="total number of disabled assets"
+        
+    )
+    isRequired=models.CharField(
+        max_length=20,
+        null=True,
+        choices=SELECT_CHOICES,
+        verbose_name="is required?"
+
+    )
+    perCost=models.IntegerField(
+        null=True,
+        verbose_name="cost per asset"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_modified = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Department asset"
+        verbose_name_plural = "Department Assets"
+        ordering = ['title', 'department']
+        indexes = [
+            models.Index(fields=['department', 'AssetName']),
+        ]
+
+    def __str__(self):
+        return f"{self.AssetName} ({self.totalNumberOfAssets}) - {self.department.abledAssetsNumber}"
+
+    def clean(self):
+        # Clean and validate data before saving
+        self.AssetName = self.AssetName.strip()
+        if self.totalNumberOfAssets:
+            self.totalNumberOfAssets = self.totalNumberOfAssets.bit_length()
+        
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
+
+
+
+
+from django.db import models
+from django.core.validators import MinLengthValidator
+from .models import Department  # Assuming Department model exists
+
+class DepartmentOrder(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('in_progress', 'In Progress'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+    ]
+
+    department = models.ForeignKey(
+        Department,
+        on_delete=models.CASCADE,
+        related_name="orders",
+        verbose_name="Department"
+    )
+    title = models.CharField(
+        max_length=100,
+        verbose_name="Order Title",
+        validators=[MinLengthValidator(3)]
+    )
+    dateCreated = models.DateField(
+        verbose_name="Date Created",
+        auto_now_add=True
+    )
+    dateToImplement = models.DateField(
+        verbose_name="Implementation Deadline"
+    )
+    howToImplement = models.TextField(
+        verbose_name="Implementation Instructions"
+    )
+    Requirements = models.TextField(
+        verbose_name="Requirements"
+    )
+    costToImplement = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        verbose_name="Implementation Cost"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending',
+        verbose_name="Order Status"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_modified = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Department Order"
+        verbose_name_plural = "Department Orders"
+        ordering = ['-dateCreated']
+        indexes = [
+            models.Index(fields=['department', 'status']),
+        ]
+
+    def __str__(self):
+        return f"{self.title} ({self.get_status_display()})"
+
+    def clean(self):
+        # Custom validation
+        if self.dateToImplement and self.dateCreated:
+            if self.dateToImplement < self.dateCreated:
+                return 
+        self.title = self.title.strip()
+
