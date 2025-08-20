@@ -1,11 +1,14 @@
 from django.contrib import admin
 from django.urls import path, include, re_path
-from api.views import *
+from api.views import *  # This should already include your HeaderImage views
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
 from django.views.static import serve
+
+# Import HeaderImage views specifically (if needed)
+from api.views import HeaderImageListCreateAPIView, HeaderImageRetrieveUpdateDestroyAPIView
 
 # DRF router for viewsets
 router = DefaultRouter()
@@ -15,11 +18,21 @@ router.register(r'department-members', DepartmentMembersViewSet, basename='depar
 router.register(r'department-reports', DepartmentReportsViewSet, basename='department-reports')
 router.register(r'department-assets', DepartmentAssetsViewSet, basename='department-assets')
 router.register(r'department-orders', DepartmentOrderViewSet, basename='department-order')
+router.register(r'users', UserViewSet, basename='user')
+router.register(r'users-api', UserRoleViewSet, basename='user-role')
+router.register(r'comments', CommentViewSet, basename='comment')
 
+from rest_framework_simplejwt.views import TokenObtainPairView
+from api.serializers import MyTokenObtainPairSerializer
+from api.views import CommentViewSet
+
+class MyTokenObtainPairView(TokenObtainPairView):
+    serializer_class = MyTokenObtainPairSerializer
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-
+    path('tinymce/', include('tinymce.urls')),
+    
     # User & auth endpoints
     path('api/user/register/', UserCreateView.as_view(), name='user_create'),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
@@ -28,7 +41,6 @@ urlpatterns = [
     path('accounts/', include('allauth.urls')),
     path('callback/', google_login_callback, name='callback'),
     path('api/auth/user/', UserDetailView.as_view(), name='user_detail'),
-    path('api/google/validate_token/', validate_google_token, name='validate_token'),
     path('api/password_reset/', PasswordResetRequestView.as_view(), name='password_reset'),
     path('api/password_reset/confirm/', PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
     path('users/', UserListView.as_view(), name='user-list'),
@@ -61,7 +73,7 @@ urlpatterns = [
     path('timetables/', TimetableListCreateAPIView.as_view(), name='timetable-list-create'),
     path('timetables/<int:pk>/', TimetableDetailAPIView.as_view(), name='timetable-detail'),
     path('timetables/<int:pk>/download/', TimetableDownloadAPIView.as_view(), name='timetable-download'),
-
+     
     # User profile
     path('users/me/', UserProfileView.as_view(), name='user_profile'),
 
@@ -74,8 +86,7 @@ urlpatterns = [
     # Include video conference app URLs
     path('', include('videoconference_app.urls')),
 
-
-       # Existing department content endpoints
+    # Existing department content endpoints
     path('api/departments/<int:department_id>/contents/', 
          DepartmentContentsByDepartment.as_view(), 
          name='department-contents-list'),
@@ -91,15 +102,12 @@ urlpatterns = [
          DepartmentMembersByMembershipNumber.as_view(),
          name='department-members-by-number'),
 
-     path('api/departments/<int:department_id>/reports/', 
+    path('api/departments/<int:department_id>/reports/', 
          DepartmentReportsByDepartment.as_view(), 
          name='department-reports-list'),
     path('api/reports/by-type/<str:report_type>/', 
          DepartmentReportsByType.as_view(),
          name='department-reports-by-type'),
-
-
-
 
     path('api/departments/<int:department_id>/assets/', 
          DepartmentAssetsByDepartment.as_view(), 
@@ -108,18 +116,14 @@ urlpatterns = [
          DepartmentAssetsByName.as_view(),
          name='department-members-by-number'),
 
-
-   path('api/departments/<int:department_id>/reports/', 
+    path('api/departments/<int:department_id>/reports/', 
          DepartmentReportsByDepartment.as_view(), 
          name='department-reports-list'),
     path('api/reports/by-type/<str:report_type>/', 
          DepartmentReportsByType.as_view(),
          name='department-reports-by-type'),
 
-
-
-
-  path('api/department-orders/department/<int:department_id>/', 
+    path('api/department-orders/department/<int:department_id>/', 
          DepartmentOrderByDepartment.as_view(), 
          name='department-orders-by-department'),
     path('api/department-orders/status/<str:status>/', 
@@ -128,10 +132,22 @@ urlpatterns = [
     path('api/department-orders/title/<str:title>/', 
          DepartmentOrderByTitle.as_view(), 
          name='department-orders-by-title'),
-
+ 
+    path('api/login/', UserLoginView.as_view(), name='user-login'),
+    
+    # Header Image endpoints - ADD THESE LINES
+    path('api/header-images/', HeaderImageListCreateAPIView.as_view(), 
+         name='header-image-list-create'),
+    path('api/header-images/<int:pk>/', HeaderImageRetrieveUpdateDestroyAPIView.as_view(), 
+         name='header-image-detail'),
+ 
     # Include router URLs (maintains existing /api/departments/ and /api/department-contents/ endpoints)
     path('api/', include(router.urls)),
 ]
 
-# Serve media files in development
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+else:
+    # For testing with DEBUG=False, we'll manually add the media serving
+    # This is a workaround for testing purposes only
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

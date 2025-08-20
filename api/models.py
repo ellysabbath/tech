@@ -1,31 +1,22 @@
 from django.db import models
-from django.contrib.auth.models import User
+from django.contrib.auth.models import AbstractUser
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-class UserProfile(models.Model):
+
+from django.db import models
+
+class User(AbstractUser):
+    phoneNumber = models.CharField(max_length=20, blank=True)
     ROLE_CHOICES = [
-        ('user', 'Regular User'),
         ('admin', 'Admin'),
-        ('staff', 'Staff'),
+        ('user', 'Regular User'),
+        ('manager', 'Manager'),
     ]
-    
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
-    phoneNumber = models.CharField(max_length=20, blank=True, null=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='user')
-
-@receiver(post_save, sender=User)
-def create_user_profile(sender, instance, created, **kwargs):
-    if created:
-        UserProfile.objects.create(user=instance)
-
-@receiver(post_save, sender=User)
-def save_user_profile(sender, instance, **kwargs):
-    if hasattr(instance, 'profile'):
-        instance.profile.save()
-
-
-
+    
+    def __str__(self):
+        return self.username
 
 class Service(models.Model):
     name = models.CharField(max_length=255)
@@ -46,8 +37,24 @@ class Service(models.Model):
 
     def __str__(self):
         return self.name
-    
+# =================COMMENTS==========
+class Comment(models.Model):
+    name = models.CharField(max_length=100)
+    email = models.EmailField()
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
 
+    def __str__(self):
+        return f"{self.name} - {self.email}"
+
+
+# ===========================
+class UserUpdate(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='role_update')
+    role = models.CharField(max_length=20, choices=User.ROLE_CHOICES, default='user')
+
+    def __str__(self):
+        return f"{self.user.username} - {self.role}"
 
 class Equipment(models.Model):
     name = models.CharField("Jina la Vifaa", max_length=255)
@@ -158,6 +165,10 @@ from twilio.rest import Client
 from django.conf import settings
 import africastalking
 
+from django.db import models
+from django.conf import settings
+import africastalking
+
 class Message(models.Model):
     sender = models.ForeignKey(
         User,
@@ -215,8 +226,6 @@ class Message(models.Model):
             self.status = 'failed'
             self.save()
             return False
-        
-
 # ==========================Announcements=============
 class Announcements(models.Model):
     date=models.DateField(auto_now_add=True,null=True)
@@ -235,6 +244,17 @@ class Timetable(models.Model):
     
     def __str__(self):
         return self.document
+    def __str__(self):
+        try:
+            # Try to return a string representation
+            if hasattr(self, 'name'):
+                return str(self.name)
+            elif hasattr(self, 'title'):
+                return str(self.title)
+            else:
+                return f"Timetable {self.id}"
+        except:
+            return f"Timetable {self.id}"
     
 
   
@@ -613,3 +633,28 @@ class DepartmentOrder(models.Model):
                 return 
         self.title = self.title.strip()
 
+
+
+
+
+# ======================HEADER MODEL=======================
+from django.db import models
+
+class HeaderImage(models.Model):
+    title = models.CharField(max_length=200, verbose_name="Title")
+    description = models.TextField(blank=True, verbose_name="Description")
+    image = models.ImageField(
+        upload_to='header_images/',
+        verbose_name="Header Image",
+        help_text="Upload a header image"
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Created At")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Updated At")
+
+    class Meta:
+        verbose_name = "Header Image"
+        verbose_name_plural = "Header Images"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.title

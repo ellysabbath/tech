@@ -1,12 +1,12 @@
 from django.shortcuts import redirect
-from django.contrib.auth import get_user_model, authenticate, login
+from django.contrib.auth import  authenticate, login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
 from django.utils.encoding import force_bytes, smart_str
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.core.exceptions import ObjectDoesNotExist
-
+from django.contrib.auth import get_user_model 
 from rest_framework import generics, status, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -18,16 +18,16 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 import json
 
-from .models import Message, UserProfile
+from .models import Message,UserUpdate
 from .serializers import (
-    UserSerializers, 
+    UserSerializer, 
     MessageSerializer, 
     PasswordResetRequestSerializer, 
     PasswordResetConfirmSerializer
 )
 
 from django.shortcuts import redirect
-from django.contrib.auth import get_user_model, authenticate, login
+from django.contrib.auth import  authenticate, login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
@@ -41,33 +41,31 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from allauth.socialaccount.models import SocialAccount, SocialToken
-
+from django.contrib.auth import get_user_model
+User = get_user_model() 
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 import json
 
-from .models import Message, UserProfile
+from .models import Message
 from .serializers import (
-    UserSerializers, 
+    UserSerializer, 
     MessageSerializer, 
     PasswordResetRequestSerializer, 
     PasswordResetConfirmSerializer
 )
 
-User = get_user_model()
+from .models import *
 
 class UserCreateView(generics.CreateAPIView):
     """
     View for user registration with phoneNumber and role
     """
     queryset = User.objects.all()
-    serializer_class = UserSerializers
+    serializer_class = UserSerializer
     permission_classes = [permissions.AllowAny]
 
 class UserLoginView(APIView):
-    """
-    View for user authentication with JWT token response
-    """
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
@@ -91,17 +89,11 @@ class UserLoginView(APIView):
                 'access': str(refresh.access_token),
                 'username': user.username,
                 'email': user.email,
+                'id': user.id,
+                'phoneNumber': user.phoneNumber,
+                'role': user.role
             }
 
-            try:
-                profile = user.userprofile
-                response_data.update({
-                    'phoneNumber': profile.phoneNumber,
-                    'role': profile.role
-                })
-            except ObjectDoesNotExist:
-                pass
-                
             return Response(response_data)
         else:
             return Response(
@@ -110,34 +102,19 @@ class UserLoginView(APIView):
             )
 
 class UserDetailView(generics.RetrieveUpdateAPIView):
-    """
-    View for retrieving and updating user details (no auth required)
-    """
     queryset = User.objects.all()
-    serializer_class = UserSerializers
-    permission_classes = [permissions.AllowAny]  # Changed from IsAuthenticated
+    serializer_class = UserSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
-        # Allow updating profile without authentication
-        if 'id' in self.kwargs:
-            return User.objects.get(pk=self.kwargs['id'])
-        return self.request.user if self.request.user.is_authenticated else None
-
-    def update(self, request, *args, **kwargs):
-        # Don't allow password updates without authentication
-        if 'password' in request.data and not request.user.is_authenticated:
-            return Response(
-                {'detail': 'Authentication required for password changes'},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
-        return super().update(request, *args, **kwargs)
-
+        # Only allow users to access their own profile
+        return self.request.user
 class UserListView(generics.ListAPIView):
     """
     View for listing all users
     """
     queryset = User.objects.all()
-    serializer_class = UserSerializers
+    serializer_class = UserSerializer
     permission_classes = [permissions.AllowAny]
 
 class UserRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
@@ -145,7 +122,7 @@ class UserRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     View for retrieving, updating and deleting users by ID
     """
     queryset = User.objects.all()
-    serializer_class = UserSerializers
+    serializer_class = UserSerializer
     permission_classes = [permissions.AllowAny]  # Allow profile updates without auth
     lookup_field = 'id'
 
@@ -202,48 +179,12 @@ def google_login_callback(request):
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
         
-        try:
-            profile = user.userprofile
-            return redirect(
-                f'http://localhost:5173/login/callback/?access_token={access_token}'
-                f'&phoneNumber={profile.phoneNumber}&role={profile.role}'
-            )
-        except ObjectDoesNotExist:
-            return redirect(
-                f'http://localhost:5173/login/callback/?access_token={access_token}'
-            )
+        return redirect(
+            f'http://localhost:5173/login/callback/?access_token={access_token}'
+            f'&phoneNumber={user.phoneNumber}&role={user.role}'
+        )
     else:
         return redirect('http://localhost:5173/login/callback/?error=NoGoogleToken')
-
-@csrf_exempt
-def validate_google_token(request):
-    """
-    View for validating Google access tokens
-    """
-    if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            google_access_token = data.get('access_token')
-
-            if not google_access_token:
-                return JsonResponse(
-                    {'detail': 'Access Token is missing.'}, 
-                    status=400
-                )
-
-            # Add actual validation against Google API here if needed
-            return JsonResponse({'valid': True})
-            
-        except json.JSONDecodeError:
-            return JsonResponse(
-                {'detail': 'Invalid JSON.'}, 
-                status=400
-            )
-    return JsonResponse(
-        {'detail': 'Method not allowed.'}, 
-        status=405
-    )
-
 class PasswordResetRequestView(APIView):
     """
     View for requesting password reset
@@ -483,6 +424,18 @@ class ContactRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView)
         instance.save()
 
 # Message Views
+from rest_framework import generics, permissions
+from .models import Message
+from .serializers import MessageSerializer
+# =======================COMMENTS==========
+from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from .models import Comment
+from .serializers import CommentSerializer
+from rest_framework import viewsets
+class CommentViewSet(viewsets.ModelViewSet):
+    queryset = Comment.objects.all()
+    serializer_class = CommentSerializer
+    permission_classes = [AllowAny]
 class MessageListCreateAPIView(generics.ListCreateAPIView):
     serializer_class = MessageSerializer
     permission_classes = [permissions.AllowAny]
@@ -505,37 +458,72 @@ class MessageRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView)
 
     def get_queryset(self):
         return Message.objects.all()
-    
+from rest_framework import generics, permissions, status
+from rest_framework.response import Response
+from django.contrib.auth import get_user_model  # Changed from direct User import
+
+# Get the custom User model
+User = get_user_model()
 
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
-from django.contrib.auth.models import User
-from .models import UserProfile
-from .serializers import UsersSerializer
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 class UserRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
-    serializer_class = UsersSerializer
-    permission_classes = [permissions.AllowAny]
-    queryset = User.objects.all()
-    lookup_field = 'pk'
-
-    def get_object(self):
-        obj = super().get_object()
-        # Ensure profile exists
-        if not hasattr(obj, 'profile'):
-            UserProfile.objects.create(user=obj)
-        return obj
+    serializer_class = UserSerializer
+    permission_classes = [permissions.IsAuthenticated]  # any logged-in user can act
+    
+    def get_queryset(self):
+        return User.objects.all()
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=kwargs.pop('partial', False))
+        serializer = self.get_serializer(
+            instance,
+            data=request.data,
+            partial=True,
+            context={'request': request}
+        )
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         return Response(serializer.data)
-    
+
+    def destroy(self, request, *args, **kwargs):
+        # allow anyone to delete
+        return super().destroy(request, *args, **kwargs)
 
     # ==================================================
+    
+from .serializers import UserRoleUpdateSerializer
+from rest_framework.permissions import IsAuthenticated, IsAdminUser  # only admins can update
+from rest_framework.decorators import action
+from rest_framework import viewsets
 
+class UserRoleViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated, AllowAny]
+
+    def list(self, request):
+        """
+        GET /users/roles/ -> return list of all users with username & role
+        """
+        users = User.objects.all()
+        data = [{"username": user.username, "role": user.role} for user in users]
+        return Response(data)
+
+    @action(detail=True, methods=['put'], url_path='update-role')
+    def update_role(self, request, pk=None):
+        """
+        PUT /users/<username>/update-role/ -> update role for given username
+        """
+        user = get_object_or_404(User, username=pk)
+        serializer = UserRoleUpdateSerializer(data=request.data)
+        if serializer.is_valid():
+            user.role = serializer.validated_data['role']
+            user.save()
+            return Response({"detail": f"Role updated to {user.role}"}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     # ================callback===========
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -1013,3 +1001,139 @@ class DepartmentOrderByTitle(ListAPIView):
     def get_queryset(self):
         title = self.kwargs['title']
         return DepartmentOrder.objects.filter(title__icontains=title).order_by('-dateCreated')
+    
+
+
+
+
+
+from rest_framework import viewsets, permissions
+
+from .serializers import UserSerializer
+
+class UserViewSet(viewsets.ModelViewSet):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [permissions.AllowAny]  # default
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            # Only admin users can create, update, or delete
+            permission_classes = [permissions.AllowAny]
+        else:  
+            # Anyone can list or retrieve users
+            permission_classes = [permissions.AllowAny]
+        return [permission() for permission in permission_classes]
+
+
+
+
+# =================================HEADER IMAGE=========================
+from rest_framework import generics, status
+from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.exceptions import NotFound
+from django.http import Http404
+from django.conf import settings
+from .models import HeaderImage
+from .serializers import HeaderImageSerializer
+from rest_framework.permissions import AllowAny
+
+class HeaderImageListCreateAPIView(generics.ListCreateAPIView):
+    queryset = HeaderImage.objects.all().order_by('-created_at')
+    serializer_class = HeaderImageSerializer
+    parser_classes = [MultiPartParser, FormParser]
+    permission_classes = [AllowAny]  # Allow anyone to access
+    
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+    
+    def perform_create(self, serializer):
+        serializer.save()
+    
+    def list(self, request, *args, **kwargs):
+        # Get the normal response
+        response = super().list(request, *args, **kwargs)
+        
+        # If DEBUG=False, modify the image URLs to be absolute
+        if not settings.DEBUG:
+            for item in response.data:
+                if 'image_url' in item and item['image_url']:
+                    # Convert relative URL to absolute URL
+                    if not item['image_url'].startswith(('http://', 'https://')):
+                        item['image_url'] = request.build_absolute_uri(item['image_url'])
+        
+        return response
+
+
+class HeaderImageRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = HeaderImage.objects.all()
+    serializer_class = HeaderImageSerializer
+    parser_classes = [MultiPartParser, FormParser]
+    lookup_field = 'pk'
+    permission_classes = [AllowAny]  # Allow anyone to access
+    
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+    
+    def retrieve(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+            serializer = self.get_serializer(instance)
+            data = serializer.data
+            
+            # If DEBUG=False, modify the image URL to be absolute
+            if not settings.DEBUG and 'image_url' in data and data['image_url']:
+                if not data['image_url'].startswith(('http://', 'https://')):
+                    data['image_url'] = request.build_absolute_uri(data['image_url'])
+            
+            return Response(data)
+        except Http404:
+            raise NotFound("Header image not found")
+    
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        
+        # Handle image removal if image field is empty
+        if 'image' in request.data and not request.data['image']:
+            request.data.pop('image')
+        
+        serializer = self.get_serializer(
+            instance, 
+            data=request.data, 
+            partial=partial
+        )
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        
+        # Get the updated data
+        response_data = serializer.data
+        
+        # If DEBUG=False, modify the image URL to be absolute
+        if not settings.DEBUG and 'image_url' in response_data and response_data['image_url']:
+            if not response_data['image_url'].startswith(('http://', 'https://')):
+                response_data['image_url'] = request.build_absolute_uri(response_data['image_url'])
+        
+        if getattr(instance, '_prefetched_objects_cache', None):
+            instance._prefetched_objects_cache = {}
+            
+        return Response(response_data)
+    
+    def destroy(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+            self.perform_destroy(instance)
+            return Response(
+                {'message': 'Header image deleted successfully'},
+                status=status.HTTP_204_NO_CONTENT
+            )
+        except Http404:
+            return Response(
+                {'error': 'Header image not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )

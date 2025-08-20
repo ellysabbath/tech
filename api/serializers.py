@@ -1,88 +1,77 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
 
-class UserSerializers(serializers.ModelSerializer):
-    email = serializers.EmailField(required=True)
+from django.contrib.auth.models import User
+from rest_framework import serializers
 
+
+
+from django.contrib.auth.models import User
+from rest_framework import serializers
+
+
+from rest_framework import serializers
+from .models import User
+from .models import UserUpdate
+class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'password')
-        extra_kwargs = {'password': {'write_only': True}}
+        fields = ('id', 'username', 'email', 'password', 'phoneNumber', 'role')
+        extra_kwargs = {
+            'password': {'write_only': True},
+            'email': {'required': True}
+        }
 
     def create(self, validated_data):
         user = User.objects.create_user(
             username=validated_data['username'],
             email=validated_data['email'],
-            password=validated_data['password']
+            password=validated_data['password'],
+            phoneNumber=validated_data.get('phoneNumber', ''),
+            role=validated_data.get('role', 'user')  # allow anyone to set role
         )
         return user
-    
+
     def update(self, instance, validated_data):
-        # Update username and email if provided
         instance.username = validated_data.get('username', instance.username)
         instance.email = validated_data.get('email', instance.email)
+        instance.phoneNumber = validated_data.get('phoneNumber', instance.phoneNumber)
 
-        # Update password if provided
-        password = validated_data.get('password', None)
-        if password:
-            instance.set_password(password)
+        # Allow anyone to update role
+        if 'role' in validated_data:
+            instance.role = validated_data['role']
+
+        if 'password' in validated_data:
+            instance.set_password(validated_data['password'])
+
         instance.save()
         return instance
-    
+# ======================COMMENTS=======
+from .models import Comment
+
+class CommentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Comment
+        fields = ('id', 'content', 'created_at')  # only expose content and timestamp
+        read_only_fields = ('id', 'created_at')
 # =====================================
-from rest_framework import serializers
-from django.contrib.auth.models import User
-from .models import UserProfile
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-class UserProfileSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = UserProfile
-        fields = ['phoneNumber', 'role']
+class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
 
-class UsersSerializer(serializers.ModelSerializer):
-    profile = UserProfileSerializer(required=False)
-    status = serializers.BooleanField(source='is_active', required=False)
+        # Add custom claims
+        token['username'] = user.username
+        token['role'] = user.role   # 👈 include role field
+        token['email'] = user.email
+        return token
 
-    class Meta:
-        model = User
-        fields = ['id', 'username', 'email', 'profile', 'status']
-        extra_kwargs = {
-            'email': {'required': True}
-        }
-
-    def create(self, validated_data):
-        profile_data = validated_data.pop('profile', {})
-        user = User.objects.create_user(
-            username=validated_data['username'],
-            email=validated_data['email']
-        )
-        UserProfile.objects.create(user=user, **profile_data)
-        return user
-
-    def update(self, instance, validated_data):
-        profile_data = validated_data.pop('profile', {})
-        
-        # Update User fields
-        instance.username = validated_data.get('username', instance.username)
-        instance.email = validated_data.get('email', instance.email)
-        
-        # Update is_active if provided
-        if 'is_active' in validated_data:
-            instance.is_active = validated_data['is_active']
-        
-        instance.save()
-        
-        # Get or create profile
-        profile, created = UserProfile.objects.get_or_create(user=instance)
-        
-        # Update profile fields
-        for attr, value in profile_data.items():
-            setattr(profile, attr, value)
-        profile.save()
-        
-        return instance
     # ===================================================
-    
+class UserRoleUpdateSerializer(serializers.Serializer):
+    username = serializers.CharField(read_only=True)  # automatically loaded
+    role = serializers.ChoiceField(choices=User.ROLE_CHOICES)
 
 
 
@@ -90,9 +79,9 @@ from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_bytes, smart_str
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from rest_framework import serializers
-from django.contrib.auth import get_user_model
 
-User = get_user_model()
+
+
 
 class PasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -129,7 +118,7 @@ from rest_framework import serializers
 from .models import Message
 from django.contrib.auth import get_user_model
 
-User = get_user_model()
+
 
 from rest_framework import serializers
 from .models import Contact, Message
@@ -138,6 +127,9 @@ class ContactSerializer(serializers.ModelSerializer):
     class Meta:
         model = Contact
         fields = ['id', 'phone_number', 'name', 'is_active','email','role']
+
+from rest_framework import serializers
+from .models import Message
 
 class MessageSerializer(serializers.ModelSerializer):
     # Remove the recipient field since we're sending to all contacts
@@ -159,7 +151,6 @@ class MessageSerializer(serializers.ModelSerializer):
             )
             
         return message
-    
     # ==================================the rest models===============
     from rest_framework import serializers
 from .models import Announcements, Timetable
@@ -342,3 +333,36 @@ class DepartmentOrderSerializer(serializers.ModelSerializer):
                     "Implementation date cannot be before creation date"
                 )
         return data
+    
+
+    # ===============================HEADER IMAGE======================
+    from rest_framework import serializers
+from .models import HeaderImage
+import os
+
+class HeaderImageSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+    filename = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = HeaderImage
+        fields = [
+            'id', 'title', 'description', 'image', 
+            'image_url', 'filename', 'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'image_url', 'filename', 'created_at', 'updated_at'
+        ]
+    
+    def get_image_url(self, obj):
+        if obj.image and hasattr(obj.image, 'url'):
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.image.url)
+            return obj.image.url
+        return None
+    
+    def get_filename(self, obj):
+        if obj.image:
+            return os.path.basename(obj.image.name)
+        return None

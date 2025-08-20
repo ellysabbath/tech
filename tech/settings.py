@@ -24,7 +24,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-sslp%3fe-$vm0vi0&v6zay-f*ozjd1*@^fc2ibxzv=h_z331sp'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
@@ -47,7 +47,9 @@ INSTALLED_APPS = [
     'allauth.socialaccount.providers.google',
     'rest_framework.authtoken',
     'videoconference_app',
-    'django_filters'
+    'django_filters',
+    'rangefilter',
+    'background_task',
     
 
 ]
@@ -154,12 +156,17 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 
 USE_TZ = True
-
+AUTH_USER_MODEL = 'api.User'
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+# settings.py
+import os
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -192,3 +199,11 @@ EMAIL_USE_TLS = True  # Use TLS for a secure connection
 EMAIL_HOST_USER = 'mwananjelaelisha36@gmail.com'  # Your email address
 EMAIL_HOST_PASSWORD = 'wddzpzxrqqetosbq'  # Your email password or an app password
 DEFAULT_FROM_EMAIL = 'mwananjelaelisha36@gmail.com'  # Default from email address
+
+
+
+
+# Africa's Talking Settings
+AFRICASTALKING_USERNAME = 'bahi'
+AFRICASTALKING_API_KEY = 'atsk_6d6d65acfca1d589d8ed7b11d143b017c32867e7b7bc1583ac6bdb677901351c1f1e317a'
+AFRICASTALKING_SENDER_ID = '2'
